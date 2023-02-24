@@ -6,13 +6,18 @@ import (
 	"log"
 	"os"
 	"strings"
+	"toydb-go/meta"
+	"toydb-go/stmt"
 )
+
+// https://cstack.github.io/db_tutorial/parts/part2.html
 
 func main() {
 	input := bufio.NewReader(os.Stdin)
 	var sb strings.Builder
 	for {
 		print_prompt()
+		sb.Reset()
 		for {
 			b, isPrefix, err := input.ReadLine()
 			if err != nil {
@@ -26,15 +31,23 @@ func main() {
 				break
 			}
 		}
-
 		cmd := sb.String()
 
-		if cmd == ".exit" {
-			os.Exit(0)
-		} else {
-			fmt.Printf("Unrecognized command %q.\n", cmd)
+		if strings.HasPrefix(cmd, ".") {
+			err := meta.DoMetaCommand(cmd)
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
 		}
-		sb.Reset()
+
+		statement, err := stmt.PrepareStatment(cmd)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		stmt.ExecuteStatement(statement)
 	}
 }
 
