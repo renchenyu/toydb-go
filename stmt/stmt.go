@@ -1,6 +1,7 @@
 package stmt
 
 import (
+	"encoding/binary"
 	"fmt"
 	"strings"
 )
@@ -39,4 +40,24 @@ func ExecuteStatement(stmt *Statement) {
 	default:
 		panic("not happend")
 	}
+}
+
+const (
+	SizeUsername uint = 32
+	SizeEmail    uint = 255
+	SizeTotal         = 4 + SizeUsername + SizeEmail
+)
+
+type SampleRow struct {
+	Id       uint32
+	Username [SizeUsername]byte
+	Email    [SizeEmail]byte
+}
+
+func (r *SampleRow) ToBytes() []byte {
+	ret := make([]byte, SizeTotal)
+	binary.LittleEndian.PutUint32(ret, r.Id)
+	copy(ret[4:], r.Username[:])
+	copy(ret[4+SizeUsername:], r.Email[:])
+	return ret
 }
