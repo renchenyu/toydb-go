@@ -13,6 +13,8 @@ import (
 // https://cstack.github.io/db_tutorial/parts/part2.html
 
 func main() {
+	table := stmt.NewTable()
+
 	input := bufio.NewReader(os.Stdin)
 	var sb strings.Builder
 	for {
@@ -47,7 +49,7 @@ func main() {
 			continue
 		}
 
-		stmt.ExecuteStatement(statement)
+		stmt.ExecuteStatement(statement, table)
 	}
 }
 
