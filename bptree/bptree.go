@@ -6,23 +6,24 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-const Order = 5
+const LeafOrder = 5
+const InternalOrder = 10
 
 type Value int
 
 func newLeafNode() *node {
 	return &node{
 		isLeaf: true,
-		keys:   make([]int, 0, Order-1),
-		values: make([]Value, 0, Order-1),
+		keys:   make([]int, 0, LeafOrder-1),
+		values: make([]Value, 0, LeafOrder-1),
 	}
 }
 
 func newInternalNode() *node {
 	return &node{
 		isLeaf:   false,
-		keys:     make([]int, 0, Order-1),
-		children: make([]*node, 0, Order),
+		keys:     make([]int, 0, InternalOrder-1),
+		children: make([]*node, 0, InternalOrder),
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"strings"
+	"toydb-go/bptree_disk"
 )
 
 type StatementType uint8
@@ -11,11 +12,13 @@ type StatementType uint8
 const (
 	StatementInsert StatementType = iota
 	StatementSelect
+	StatementDelete
 )
 
 var stringToStatment = map[string]StatementType{
 	"insert": StatementInsert,
 	"select": StatementSelect,
+	"delete": StatementDelete,
 }
 
 type Statement struct {
@@ -30,6 +33,11 @@ func PrepareStatment(s string) (*Statement, error) {
 			switch v {
 			case StatementInsert:
 				_, err := fmt.Sscanf(s, "insert %d %s %s", &row.Id, &row.Username, &row.Email)
+				if err != nil {
+					return nil, fmt.Errorf("syntax error: %w", err)
+				}
+			case StatementDelete:
+				_, err := fmt.Sscanf(s, "delete %d", &row.Id)
 				if err != nil {
 					return nil, fmt.Errorf("syntax error: %w", err)
 				}
@@ -49,14 +57,19 @@ func PrepareStatment(s string) (*Statement, error) {
 func ExecuteStatement(stmt *Statement, table *Table) error {
 	switch stmt.Type {
 	case StatementInsert:
-		err := table.Insert(stmt.RowToInsert)
-		if err != nil {
-			return err
-		}
+		table.Insert(
+			bptree_disk.Key(stmt.RowToInsert.Id),
+			bptree_disk.Value(stmt.RowToInsert.ToBytes()),
+		)
+	case StatementDelete:
+		table.bptree.Delete(bptree_disk.Key(stmt.RowToInsert.Id))
 	case StatementSelect:
-		for i := uint(0); i < table.Rows(); i++ {
-			row, _ := table.GetRow(i)
+		iter := table.Iterator()
+		entry := iter.Next()
+		for entry != nil {
+			row := NewSampleRowFromBytes(*entry.Val)
 			fmt.Println(row)
+			entry = iter.Next()
 		}
 	default:
 		panic("not happend")
@@ -114,58 +127,57 @@ func NewSampleRowFromBytes(data []byte) *SampleRow {
 	}
 }
 
-const (
-	PageSize    uint = 4096
-	MaxPages    uint = 100
-	RowsPerPage uint = PageSize / SizeTotal
-	MaxRows     uint = RowsPerPage * PageSize
-)
-
-type Page []byte
-
 type Table struct {
-	rows  uint
-	pages [MaxPages]Page
+	pager  *bptree_disk.Pager
+	bptree *bptree_disk.BpTree
 }
 
-func NewTable() *Table {
-	return &Table{
-		rows:  0,
-		pages: [100]Page{},
+func CreateTable(filename string) error {
+	return bptree_disk.NewPager(filename, uint16(SizeTotal))
+}
+
+func OpenTable(filename string) (*Table, error) {
+	pager, err := bptree_disk.LoadPager(filename)
+	if err != nil {
+		return nil, err
 	}
+	return &Table{
+		pager:  pager,
+		bptree: bptree_disk.NewBpTree(pager),
+	}, nil
 }
 
 func (t *Table) Rows() uint {
-	return t.rows
+	return uint(t.bptree.Len())
 }
 
-func (t *Table) Insert(row SampleRow) error {
-	if t.rows == MaxRows {
-		return fmt.Errorf("table is full")
-	}
-
-	t.rows++
-
-	pageOffset := (t.rows - 1) / RowsPerPage
-	rowOffset := (t.rows - 1) % RowsPerPage * SizeTotal
-
-	if t.pages[pageOffset] == nil {
-		t.pages[pageOffset] = make([]byte, PageSize)
-	}
-
-	rowBytes := row.ToBytes()
-	copy(t.pages[pageOffset][rowOffset:], rowBytes)
-	return nil
+func (t *Table) Insert(key bptree_disk.Key, val bptree_disk.Value) {
+	t.bptree.Insert(key, val)
 }
 
-func (t *Table) GetRow(idx uint) (*SampleRow, error) {
-	if idx > t.rows {
-		return nil, fmt.Errorf("not found")
-	}
+func (t *Table) GetRow(key bptree_disk.Key) *bptree_disk.Value {
+	return t.bptree.Find(key)
+}
 
-	pageOffset := idx / RowsPerPage
-	rowOffset := idx % RowsPerPage * SizeTotal
+func (t *Table) Iterator() bptree_disk.Iterator {
+	return t.bptree.Iterator()
+}
 
-	data := t.pages[pageOffset][rowOffset : rowOffset+SizeTotal]
-	return NewSampleRowFromBytes(data), nil
+func (t *Table) Close() error {
+	return t.pager.FlushAll()
+}
+
+func (t *Table) Len() int {
+	return t.bptree.Len()
+}
+
+func (t *Table) Dump() {
+	t.bptree.Print()
+}
+
+func (t *Table) Info() {
+	fmt.Printf("internal order: %d\n", bptree_disk.InternalOrder)
+	fmt.Printf("leaf order: %d\n", t.bptree.LeafOrder())
+	fmt.Printf("num page: %d\n", t.pager.NumPage())
+	fmt.Printf("free page list: %v\n", t.pager.FreePageList())
 }

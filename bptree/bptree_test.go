@@ -80,7 +80,7 @@ func TestBpTree2(t *testing.T) {
 	assert.Equal(t, bptree.Value(98), *tree.Find(98))
 	assert.Nil(t, tree.Find(99999))
 
-	// tree.Print()
+	tree.Print()
 
 	// internal: borrow from Left
 	tree.Delete(59)

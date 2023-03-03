@@ -6,14 +6,23 @@ import (
 	"log"
 	"os"
 	"strings"
-	"toydb-go/meta"
 	"toydb-go/stmt"
 )
 
 // https://cstack.github.io/db_tutorial/parts/part2.html
 
 func main() {
-	table := stmt.NewTable()
+	filename := "test.db"
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		if err := stmt.CreateTable(filename); err != nil {
+			panic(err)
+		}
+	}
+
+	table, err := stmt.OpenTable(filename)
+	if err != nil {
+		panic(err)
+	}
 
 	input := bufio.NewReader(os.Stdin)
 	var sb strings.Builder
@@ -36,11 +45,21 @@ func main() {
 		cmd := sb.String()
 
 		if strings.HasPrefix(cmd, ".") {
-			err := meta.DoMetaCommand(cmd)
-			if err != nil {
-				fmt.Println(err)
-				continue
+			if cmd == ".exit" {
+				if err := table.Close(); err != nil {
+					panic(err)
+				}
+				os.Exit(0)
+			} else if cmd == ".len" {
+				fmt.Printf("%d\n", table.Len())
+			} else if cmd == ".dump" {
+				table.Dump()
+			} else if cmd == ".info" {
+				table.Info()
+			} else {
+				fmt.Printf("unrecognized meta command: %q\n", cmd)
 			}
+			continue
 		}
 
 		statement, err := stmt.PrepareStatment(cmd)
